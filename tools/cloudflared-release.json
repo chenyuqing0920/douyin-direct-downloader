@@ -1,0 +1,6 @@
+{
+  "version": "2026.10.1",
+  "source": "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-windows-amd64.exe",
+  "sha256": "4d2490e74082c5d48dbfedaf92576fa5bd1702379ab88eb7faa0cfbe8dc891b6",
+  "authenticode": "Valid - Cloudflare, Inc."
+}

@@ -8,7 +8,7 @@ import unittest
 from pathlib import Path
 from urllib.request import build_opener
 
-from downloader import Cancelled, DownloadError, Video, detail_from_html, download_video, extract_links, safe_name, video_id, walk_details
+from downloader import Cancelled, DownloadError, Video, _muxed_urls, detail_from_html, download_video, extract_any_links, extract_links, safe_name, video_id, walk_details
 
 
 class QuietHandler(http.server.SimpleHTTPRequestHandler):
@@ -22,6 +22,27 @@ class DownloaderTests(unittest.TestCase):
         with self.assertRaises(DownloadError):
             extract_links("https://douyin.com.evil.test/video/123")
         self.assertEqual(len(extract_links("https://www.douyin.com/video/123 https://www.douyin.com/video/123")), 1)
+
+    def test_any_links_multi_platform(self):
+        self.assertEqual(extract_any_links("看这个 https://www.bilibili.com/video/BV1xx411c7mu/ 不错"),
+                         ["https://www.bilibili.com/video/BV1xx411c7mu/"])
+        self.assertEqual(extract_any_links("https://www.tiktok.com/@a/video/123"),
+                         ["https://www.tiktok.com/@a/video/123"])
+        # Douyin links still win when mixed with other platforms.
+        mixed = "https://www.bilibili.com/video/BV1xx411c7mu/ https://v.douyin.com/abc/"
+        self.assertEqual(extract_any_links(mixed), ["https://v.douyin.com/abc/"])
+        with self.assertRaises(DownloadError):
+            extract_any_links("没有任何链接")
+
+    def test_muxed_url_picking(self):
+        data = {"formats": [
+            {"url": "https://cdn.example/v-only.mp4", "vcodec": "avc1", "acodec": "none", "height": 1080},
+            {"url": "https://cdn.example/low.mp4", "vcodec": "avc1", "acodec": "mp4a", "height": 360, "ext": "mp4"},
+            {"url": "https://cdn.example/high.mp4", "vcodec": "avc1", "acodec": "mp4a", "height": 720, "ext": "mp4"},
+        ]}
+        picked = _muxed_urls(data)
+        self.assertEqual([f["url"] for f in picked],
+                         ["https://cdn.example/high.mp4", "https://cdn.example/low.mp4"])
 
     def test_identifiers(self):
         self.assertEqual(video_id("https://www.douyin.com/?modal_id=123"), "123")

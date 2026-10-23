@@ -6,6 +6,7 @@ import http.cookiejar
 import json
 import os
 import re
+import sys
 import threading
 import time
 import uuid
@@ -16,7 +17,22 @@ from urllib.request import HTTPCookieProcessor, Request, build_opener
 
 UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
 MOBILE_UA = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 Version/17.5 Mobile/15E148 Safari/604.1"
-DATA = Path(os.environ.get("LOCALAPPDATA", str(Path.home()))) / "DouyinLocalDownloader"
+
+
+def _default_data_dir():
+    override = os.environ.get("DOUYIN_DATA_DIR")
+    if override:
+        return Path(override).expanduser()
+    if os.name == "nt":
+        base = Path(os.environ.get("LOCALAPPDATA", str(Path.home())))
+    elif sys.platform == "darwin":
+        base = Path.home() / "Library" / "Application Support"
+    else:  # Linux and other POSIX systems follow the XDG base directory spec.
+        base = Path(os.environ.get("XDG_DATA_HOME", str(Path.home() / ".local" / "share")))
+    return base / "DouyinLocalDownloader"
+
+
+DATA = _default_data_dir()
 
 
 class DownloadError(Exception):
@@ -52,6 +68,62 @@ def extract_links(text):
     if not links:
         raise DownloadError("没有找到抖音链接。请粘贴抖音的“复制链接”分享文案或视频网址。")
     return links
+
+
+def _is_public_url(value):
+    try:
+        p = urlparse(value)
+    except ValueError:
+        return False
+    return p.scheme in ("http", "https") and bool(p.hostname) \
+        and not p.username and not p.password and p.port in (None, 80, 443)
+
+
+def extract_any_links(text):
+    """Douyin links win when present; otherwise accept any public video URL
+    and let the yt-dlp resolver figure out the platform."""
+    try:
+        return extract_links(text)
+    except DownloadError:
+        pass
+    links = []
+    for value in re.findall(r"https?://[^\s<>\"\u3000]+", text):
+        value = value.rstrip(".,;!?，。；！？、）)]}〉》'”")
+        if _is_public_url(value) and value not in links:
+            links.append(value)
+    if not links:
+        raise DownloadError("没有找到视频链接。请粘贴视频网址或 App 的“复制链接”分享文案。")
+    return links
+
+
+class _YtdlpQuiet:
+    def debug(self, msg): pass
+    def warning(self, msg): pass
+    def error(self, msg): pass
+
+
+def _ytdlp_cookiefile():
+    """Optional cookies for platforms that gate parsing behind a login
+    (YouTube bot check, Bilibili risk control, Douyin fresh cookies)."""
+    env = os.environ.get("YDLP_COOKIEFILE")
+    if env and Path(env).expanduser().is_file():
+        return str(Path(env).expanduser())
+    candidate = DATA / "cookies.txt"
+    if candidate.is_file():
+        return str(candidate)
+    return None
+
+
+def _muxed_urls(data, mp4_only=False):
+    """Formats that carry audio+video in one file, best first. The web flow
+    hands a single direct URL to the visitor's device, so split audio/video
+    (DASH) formats cannot be used here."""
+    formats = [f for f in data.get("formats", [])
+               if f.get("url") and f.get("vcodec") not in (None, "none")
+               and f.get("acodec") not in (None, "none")
+               and (not mp4_only or f.get("ext") == "mp4")]
+    formats.sort(key=lambda f: (f.get("height") or 0, f.get("tbr") or 0), reverse=True)
+    return formats
 
 
 def video_id(url):
@@ -150,7 +222,7 @@ class Resolver:
     def resolve(self, url):
         check_cancel(self.cancel)
         if not is_douyin(url):
-            raise DownloadError("仅支持抖音链接")
+            return self.ytdlp_resolve(url)
         wanted = video_id(url)
         if not wanted:
             self.log("正在展开分享短链接…")
@@ -184,16 +256,14 @@ class Resolver:
         self.log("分享页未返回视频，尝试开源解析引擎…")
         try:
             import yt_dlp
-            class Quiet:
-                def debug(self, msg): pass
-                def warning(self, msg): pass
-                def error(self, msg): pass
-            with yt_dlp.YoutubeDL({"quiet": True, "no_warnings": True, "logger": Quiet(), "socket_timeout": 12,
-                                     "retries": 0, "extractor_retries": 0, "noplaylist": True}) as ydl:
+            opts = {"quiet": True, "no_warnings": True, "logger": _YtdlpQuiet(), "socket_timeout": 12,
+                    "retries": 0, "extractor_retries": 0, "noplaylist": True}
+            cookiefile = _ytdlp_cookiefile()
+            if cookiefile:
+                opts["cookiefile"] = cookiefile
+            with yt_dlp.YoutubeDL(opts) as ydl:
                 data = ydl.extract_info(f"https://www.douyin.com/video/{wanted}", download=False)
-            formats = [f for f in data.get("formats", []) if f.get("url") and f.get("vcodec") != "none"
-                       and f.get("acodec") != "none" and f.get("ext") == "mp4"]
-            formats.sort(key=lambda f: (f.get("height") or 0, f.get("tbr") or 0), reverse=True)
+            formats = _muxed_urls(data, mp4_only=True)
             if formats:
                 return Video(wanted, data.get("title") or "抖音视频", [f["url"] for f in formats],
                              {**data.get("http_headers", {}), **formats[0].get("http_headers", {})}, list(ydl.cookiejar))
@@ -201,6 +271,41 @@ class Resolver:
             pass
         check_cancel(self.cancel)
         return self.browser_resolve(wanted)
+
+    def ytdlp_resolve(self, url):
+        """Generic path for every non-Douyin platform via yt-dlp."""
+        check_cancel(self.cancel)
+        if not _is_public_url(url):
+            raise DownloadError("链接格式不正确")
+        self.log("正在用开源解析引擎解析该平台链接…")
+        import yt_dlp
+        opts = {"quiet": True, "no_warnings": True, "logger": _YtdlpQuiet(), "socket_timeout": 30,
+                "retries": 1, "extractor_retries": 1, "noplaylist": True}
+        cookiefile = _ytdlp_cookiefile()
+        if cookiefile:
+            opts["cookiefile"] = cookiefile
+        try:
+            with yt_dlp.YoutubeDL(opts) as ydl:
+                data = ydl.extract_info(url, download=False)
+                cookies = list(ydl.cookiejar)
+        except Exception as exc:
+            message = str(exc)
+            if "Unsupported URL" in message:
+                raise DownloadError("暂不支持这个平台的链接（yt-dlp 没有对应的解析器）。")
+            if "cookie" in message.lower():
+                raise DownloadError("该平台要求登录状态才能解析。请把该站的 cookies.txt 放到数据目录后重试。")
+            raise DownloadError("解析失败：" + message.replace("\n", " ")[:160])
+        if data.get("entries"):
+            data = next((e for e in data["entries"] if e), data)
+        formats = _muxed_urls(data)
+        if formats:
+            headers = {**data.get("http_headers", {}), **formats[0].get("http_headers", {})}
+            return Video(str(data.get("id") or "video"), data.get("title") or "视频",
+                         [f["url"] for f in formats], headers, cookies)
+        if data.get("url"):
+            return Video(str(data.get("id") or "video"), data.get("title") or "视频",
+                         [data["url"]], data.get("http_headers", {}), cookies)
+        raise DownloadError("该平台只提供分离的音视频流或需要登录，暂时无法给出可直接下载的链接。")
 
     def browser_resolve(self, wanted):
         from playwright.sync_api import Error as BrowserError, sync_playwright
@@ -259,15 +364,30 @@ class Resolver:
 def launch_browser(playwright):
     DATA.mkdir(parents=True, exist_ok=True)
     errors = []
-    for channel in ("msedge", "chrome"):
+    # Windows keeps the original behaviour: a visible Edge/Chrome window the
+    # user can log in to. Headless servers (Linux) have no display and usually
+    # no Edge, so there we run Playwright's Chromium headlessly instead.
+    # DOUYIN_BROWSER_HEADLESS=0/1 forces the mode on any platform.
+    forced = os.environ.get("DOUYIN_BROWSER_HEADLESS")
+    if os.name == "nt" and forced is None:
+        attempts = [{"channel": "msedge", "headless": False},
+                    {"channel": "chrome", "headless": False}]
+    else:
+        headless = forced != "0" if forced is not None else os.name != "nt"
+        attempts = [{"channel": "chrome", "headless": headless},
+                    {"channel": "chromium", "headless": headless},
+                    {"headless": headless}]
+        if os.name == "nt":
+            attempts.insert(0, {"channel": "msedge", "headless": headless})
+    for options in attempts:
         try:
             return playwright.chromium.launch_persistent_context(
-                str(DATA / "browser-profile"), channel=channel, headless=False,
-                viewport={"width": 1100, "height": 760}, accept_downloads=False,
-                args=["--autoplay-policy=user-gesture-required"])
+                str(DATA / "browser-profile"), viewport={"width": 1100, "height": 760},
+                accept_downloads=False,
+                args=["--autoplay-policy=user-gesture-required"], **options)
         except Exception as exc:
             errors.append(type(exc).__name__)
-    raise DownloadError("无法启动浏览器。请安装 Edge 或 Chrome，并关闭本工具先前打开的抖音浏览器后重试。")
+    raise DownloadError("无法启动浏览器。请安装 Edge、Chrome 或 Chromium（Linux 可运行 python -m playwright install chromium），并关闭本工具先前打开的抖音浏览器后重试。")
 
 
 def browser_cookies(values):

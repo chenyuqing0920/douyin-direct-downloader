@@ -16,7 +16,7 @@ from flask import Flask, jsonify, redirect, render_template, request
 from urllib.parse import urlsplit
 from werkzeug.security import check_password_hash, generate_password_hash
 
-from downloader import DATA, Cancelled, DownloadError, Resolver, extract_links, safe_name
+from downloader import DATA, Cancelled, DownloadError, Resolver, extract_any_links, safe_name
 
 class LinkExpired(DownloadError):
     pass
@@ -270,9 +270,9 @@ def create_app(jobs, password, resources=None):
     def new_jobs():
         body = request.get_json(silent=True)
         if not isinstance(body, dict) or not isinstance(body.get("text"), str):
-            return jsonify(error="请输入抖音链接或分享文案"), 400
+            return jsonify(error="请输入视频链接或分享文案"), 400
         try:
-            links = extract_links(body["text"])
+            links = extract_any_links(body["text"])
             if len(links) > 20:
                 raise DownloadError("每次最多提交 20 个视频链接")
             return jsonify(ids=jobs.submit(links)), 202

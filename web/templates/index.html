@@ -2,15 +2,18 @@
 <html lang="zh-CN">
 <head>
   <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-  <meta name="theme-color" content="#fafafa"><title>随手存 · 抖音视频下载</title>
+  <meta name="theme-color" content="#faf9f6"><title>随手存 · 视频下载</title>
   <link rel="icon" href="/static/icon.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@500;700;900&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/static/style.css"><script src="/static/app.js" defer></script>
 </head>
 <body>
 <div class="shell">
-  <header><a class="brand" href="/" aria-label="随手存首页"><span class="logo">↓</span>随手存<span class="badge">私人下载站</span></a><span class="connection"><i></i>电脑在线</span></header>
+  <header><a class="brand" href="/" aria-label="回到博客首页"><span class="logo">↓</span>随手存<span class="badge">私人下载站</span></a><span class="head-right"><a class="files-link" href="/files/">文件小站</a><span class="connection"><i></i>服务在线</span></span></header>
   <main>
-    <section class="intro"><h1>抖音视频下载</h1><p class="description">粘贴链接或分享文案，保存喜欢的视频。</p></section>
+    <section class="intro"><p class="kicker">Suishoucun · Video Saver</p><h1>视频下载</h1><p class="description">粘贴抖音、TikTok 等平台的链接或分享文案，保存喜欢的视频。</p></section>
     <section id="login-panel" class="panel">
       <div class="panel-top"><div><h2>输入访问密码</h2><p>验证后即可开始使用</p></div></div>
       <form id="login-form"><label for="password">访问密码</label><div class="password-wrap"><input id="password" name="password" type="password" autocomplete="current-password" required maxlength="128" placeholder="请输入访问密码"><button type="button" id="toggle-password" class="quiet">显示</button></div><button class="primary" id="login-button" type="submit">安全连接 <span>→</span></button></form>
@@ -18,14 +21,14 @@
     </section>
     <div id="workspace" hidden>
       <section class="panel"><div class="panel-top"><div><h2>视频链接</h2><p>支持完整分享文案，也可以一次粘贴多条链接</p></div></div>
-        <form id="download-form"><label class="sr-only" for="share-text">抖音分享链接或文案</label><textarea id="share-text" rows="4" maxlength="12000" placeholder="在抖音点击「分享 → 复制链接」，&#10;然后粘贴到这里…" required></textarea><div class="form-bottom"><span>支持短链接 / 完整视频链接</span><button type="button" class="quiet" id="clear-button">清空</button></div><button class="primary" id="submit-button" type="submit">解析链接 <span>→</span></button></form>
+        <form id="download-form"><label class="sr-only" for="share-text">视频链接或分享文案</label><textarea id="share-text" rows="4" maxlength="12000" placeholder="在 App 里点击「分享 → 复制链接」，&#10;然后粘贴到这里…" required></textarea><div class="form-bottom"><span>支持抖音 / TikTok 等平台，可一次多条</span><button type="button" class="quiet" id="clear-button">清空</button></div><button class="primary" id="submit-button" type="submit">解析链接 <span>→</span></button></form>
       </section>
       <section class="library"><div class="library-heading"><div><span class="eyebrow">DIRECT FROM THE SOURCE</span><h2>解析记录 <span id="job-count">0</span></h2></div><button id="refresh-button" class="text-button">刷新</button></div><div id="jobs"><div class="empty"><span>↓</span><h3>把喜欢的视频存到你的设备</h3><p>解析完成后直接下载，视频流量不经过服务端</p></div></div></section>
       <div class="session-row"><span>已连接私人下载站</span><button id="logout-button" class="text-button">退出登录</button></div>
     </div>
     <div id="notice" role="status" aria-live="polite" hidden></div>
-    <section class="how"><div><span>01</span>复制抖音链接</div><b>→</b><div><span>02</span>解析视频地址</div><b>→</b><div><span>03</span>设备直连源站</div></section>
-    <footer>手机与电脑均可使用</footer>
+    <section class="how"><div><span>01</span>复制视频链接</div><b>→</b><div><span>02</span>解析视频地址</div><b>→</b><div><span>03</span>设备直连源站</div></section>
+    <footer>手机与电脑均可使用 · <a href="/">回到博客首页</a></footer>
   </main>
 </div>
 <dialog id="preview-dialog"><div class="preview-heading"><h2>视频预览</h2><button id="close-preview" class="text-button">关闭 ✕</button></div><video id="preview-video" controls playsinline preload="metadata"></video><p>苹果手机可通过视频菜单或分享菜单保存视频。</p></dialog>

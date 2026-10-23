@@ -11,7 +11,7 @@ import tkinter as tk
 from pathlib import Path
 from tkinter import filedialog, messagebox, ttk
 
-from downloader import DATA, Cancelled, DownloadError, Resolver, download_video, extract_links, login_browser
+from downloader import DATA, Cancelled, DownloadError, Resolver, download_video, extract_any_links, login_browser
 
 
 class App:
@@ -127,7 +127,7 @@ class App:
         if self.busy:
             return
         try:
-            links = extract_links(self.input.get("1.0", "end"))
+            links = extract_any_links(self.input.get("1.0", "end"))
             if not self.folder.get().strip():
                 raise DownloadError("请选择保存位置")
             folder = Path(self.folder.get()).expanduser().resolve()
@@ -245,7 +245,7 @@ def main():
     if args.url:
         cancel = threading.Event()
         try:
-            for link in extract_links(args.url):
+            for link in extract_any_links(args.url):
                 info = Resolver(print, cancel).resolve(link)
                 result = download_video(info, args.output, lambda a, b, c: None, cancel)
                 print(f"已保存：{result}")

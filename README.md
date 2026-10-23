@@ -27,6 +27,23 @@ powershell -ExecutionPolicy Bypass -File .\准备远程版.ps1
 
 仓库只包含源码、依赖清单、构建脚本与界面预览，不包含本机密码、登录 Cookie、视频样本、虚拟环境或打包 EXE。源文件中的快捷方式说明适用于本机已打包版本；从 GitHub 克隆后请使用上述命令启动或自行打包。
 
+## 在 Linux 服务器上运行（网页版）
+
+桌面版和远程版控制面板是 Windows 专用（Tkinter + PowerShell）。Linux 服务器上使用无头入口 `linux_server.py`，运行的是同一套网页服务（Flask + Waitress）：
+
+```bash
+# 需要 Python 3.12
+./run_linux.sh                # 自动建 .venv、装依赖与 Playwright Chromium，再启动服务
+# 或手动：
+python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
+.venv/bin/python -m playwright install chromium   # 浏览器解析回退用，无头运行
+.venv/bin/python linux_server.py --port 7860      # 默认只监听 127.0.0.1
+```
+
+- 访问密码：首次启动随机生成，保存在数据目录的 `remote-access.json` 并打印到服务控制台；也可以用环境变量 `DOUYIN_ACCESS_PASSWORD` 指定。数据目录在 Linux 上为 `$XDG_DATA_HOME/DouyinLocalDownloader`（默认 `~/.local/share/DouyinLocalDownloader`），可用 `DOUYIN_DATA_DIR` 覆盖。
+- 对外访问：和 Windows 版一样走隧道/反向代理，不要把端口直接暴露到公网。`./run_linux.sh --with-tunnel` 会在本机已安装 `cloudflared` 时同时拉起 Cloudflare 快速隧道，打印 `https://*.trycloudflare.com` 临时网址（重启后变化）。
+- 无头服务器上无法弹出浏览器做人工登录/验证，抖音要求登录时请先在桌面端完成登录再同步浏览器配置目录，或改用分享页/yt-dlp 两级解析可直接处理链接。
+
 ## 使用
 
 源码版运行 `.\.venv\Scripts\python.exe app.py`。本机已打包版本可双击 **启动抖音下载器.lnk**，或进入 `dist\抖音视频下载器` 双击 **抖音视频下载器.exe**。

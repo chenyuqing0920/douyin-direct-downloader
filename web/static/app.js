@@ -3,14 +3,14 @@ let csrf = '', timer, lastSnapshot = '', noticeTimer;
 const transfers = new Map();
 const $ = id => document.getElementById(id);
 // Keep frontend-only updates compatible with templates cached by a running EXE.
-document.title='随手存 · 抖音视频下载';
-document.querySelector('meta[name="theme-color"]').setAttribute('content','#fafafa');
+document.title='随手存 · 视频下载';
+document.querySelector('meta[name="theme-color"]').setAttribute('content','#faf9f6');
 for(const [selector,text] of [
-  ['.intro h1','抖音视频下载'],['.description','粘贴链接或分享文案，保存喜欢的视频。'],
+  ['.intro h1','视频下载'],['.description','粘贴抖音、TikTok 等平台的链接或分享文案，保存喜欢的视频。'],
   ['#login-panel h2','输入访问密码'],['#login-panel .panel-top p','验证后即可开始使用'],
   ['#login-panel .hint','请使用服务提供者分享的密码。'],['#workspace .panel h2','视频链接'],
   ['#workspace .panel-top p','支持完整分享文案，也可以一次粘贴多条链接'],
-  ['.empty h3','还没有解析记录'],['.empty p','粘贴链接，开始保存第一条视频'],['footer','手机与电脑均可使用']
+  ['.empty h3','还没有解析记录'],['.empty p','粘贴链接，开始保存第一条视频']
 ]){const el=document.querySelector(selector);if(el)el.textContent=text;}
 $('login-button').replaceChildren(document.createTextNode('进入'),node('span','','→'));
 document.querySelector('.connection').lastChild.textContent='服务在线';
